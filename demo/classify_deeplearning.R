@@ -53,22 +53,14 @@ sinop <- sits_cube(
 sinop_probs <- sits_classify(sinop,
                              ml_model = dl_model,
                              memsize = 12,
-                             multicores = 4,
+                             multicores = 2,
                              output_dir = tempdir()
 )
 
+# smoothen with bayesian filter
+sinop_bayes <- sits_smooth(sinop_probs, output_dir = tempdir())
 # label the classified image
-sinop_label <- sits_label_classification(sinop_probs,
-                                         output_dir = tempdir()
-)
+sinop_label <- sits_label_classification(sinop_bayes, output_dir = tempdir())
 
-# plot the raster image
-plot(sinop_label, time = 1, title = "Sinop-2013-2014")
-
-# smooth the result with a bayesian filter
-sinop_bayes <- sits_label_classification(sinop_probs,
-                                         smoothing = "bayesian",
-                                         output_dir = tempdir())
-
-# plot the smoothened image
+# plot the smoothed image
 plot(sinop_bayes, time = 1, title = "Sinop-smooth")

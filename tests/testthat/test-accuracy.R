@@ -1,4 +1,24 @@
 context("Accuracy")
+test_that("conf_matrix -2 classes", {
+    data(cerrado_2classes)
+    train_data <- sits_sample(cerrado_2classes, n = 100)
+    test_data <- sits_sample(cerrado_2classes, n = 25)
+    rfor_model <- sits_train(train_data, sits_rfor(num_trees = 100))
+    points_class <- sits_classify(test_data, rfor_model)
+    invisible(capture.output(conf_mx <- sits_conf_matrix(points_class)))
+    expect_true(conf_mx$overall["Accuracy"] > 0.90)
+    expect_true(conf_mx$overall["Kappa"] > 0.80)
+})
+test_that("conf_matrix - more than 2 classes", {
+    data(samples_mt_4bands)
+    train_data <- sits_sample(samples_mt_4bands, n = 25)
+    test_data <- sits_sample(samples_mt_4bands, n = 25)
+    rfor_model <- sits_train(train_data, sits_rfor(num_trees = 100))
+    points_class <- sits_classify(test_data, rfor_model)
+    invisible(capture.output(conf_mx <- sits_conf_matrix(points_class)))
+    expect_true(conf_mx$overall["Accuracy"] > 0.85)
+    expect_true(conf_mx$overall["Kappa"] > 0.80)
+})
 test_that("XLS", {
     data(cerrado_2classes)
     pred_ref <- sits_kfold_validate(cerrado_2classes, folds = 2,
@@ -42,7 +62,7 @@ test_that("Accuracy areas", {
 
     samples_mt_2bands <- dplyr::filter(samples_mt_2bands, label %in%
         c("Forest", "Pasture", "Soy_Corn"))
-    rfor_model <- sits_train(samples_mt_2bands, sits_rfor(num_trees = 200))
+    rfor_model <- sits_train(samples_mt_2bands, sits_rfor(num_trees = 1000))
 
     ndvi_file <- c(system.file("extdata/raster/mod13q1/sinop-ndvi-2014.tif",
         package = "sits"
@@ -90,6 +110,6 @@ test_that("Accuracy areas", {
         sits_accuracy(sinop_2014_label, ground_truth)))
         )
 
-    expect_true(as.numeric(as$accuracy$user["Forest"]) > 0.5)
+    expect_true(as.numeric(as$accuracy$user["Forest"]) > 0.8)
     expect_true(as.numeric(as$accuracy$producer["Pasture"]) > 0.5)
 })

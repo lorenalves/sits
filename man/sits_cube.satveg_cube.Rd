@@ -4,7 +4,7 @@
 \alias{sits_cube.satveg_cube}
 \title{Defines a data cube for the SATVEG service}
 \usage{
-\method{sits_cube}{satveg_cube}(type = "SATVEG", ..., name = NULL)
+\method{sits_cube}{satveg_cube}(type = "SATVEG", ..., name)
 }
 \arguments{
 \item{type}{Type of cube}

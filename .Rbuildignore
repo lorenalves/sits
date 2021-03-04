@@ -1,9 +1,9 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-.travis.yml$
+^\.drone.yml$
 ^packrat/
-.Rprofile$
-.RData$
+^\.Rprofile$
+^\.RData$
 ^\.tmp$
 ^README\.Rmd$
 ^README\.md$
@@ -11,8 +11,7 @@
 ^man/figures/*$
 ^doc$
 ^Meta$
-^\.travis\.yml$
-^appveyor\.yml$
 ^tic\.R$
-^codemeta\.json$
-^CONDUCT\.md$
+^CODE_OF_CONDUCT.md$
+^\.gcda$
+^\.gcno$

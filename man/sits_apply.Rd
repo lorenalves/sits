@@ -2,7 +2,7 @@
 % Please edit documentation in R/sits_tibble.R
 \name{sits_apply}
 \alias{sits_apply}
-\title{Apply a function over sits bands.}
+\title{Apply a function over a time series.}
 \usage{
 sits_apply(
   data,
@@ -43,8 +43,8 @@ Apply a 1D generic function to a time series
  and each element vector will generate a new band which name composed
  by concatenating original band name and the corresponding list element name.
 
-  If a suffix is provided in `bands_suffix`, all resulting band
-  names will end with provided suffix separated by a ".".
+ If a suffix is provided in `bands_suffix`, all resulting band
+ names will end with provided suffix separated by a ".".
 }
 \examples{
 # Get a time series

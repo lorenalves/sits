@@ -6,9 +6,9 @@
 \usage{
 sits_label_classification(
   cube,
-  smoothing = "bayesian",
-  window = matrix(1, nrow = 3, ncol = 3, byrow = TRUE),
-  variance = 20,
+  smoothing = NULL,
+  multicores = 1,
+  memsize = 1,
   output_dir = "./",
   version = "v1"
 )
@@ -16,18 +16,13 @@ sits_label_classification(
 \arguments{
 \item{cube}{Classified image data cube.}
 
-\item{smoothing}{(optional) smoothing method to be applied
-("none", "bayesian", "majority")}
+\item{smoothing}{(deprecated)}
 
-\item{window}{A matrix with the neighborhood window
-to compute bayesian smooth.
-The central element index (i, j) is given by
-i = floor(nrows(window)/2)+1 and
-j = floor(ncols(window)/2)+1.
-Elements '0' are excluded from window.}
+\item{multicores}{Number of process to label the classification in
+snow subprocess.}
 
-\item{variance}{Estimated variance of logit of class_probs
-(Bayesian smoothing parameter).}
+\item{memsize}{Maximum overall memory (in GB) to label the
+classification.}
 
 \item{output_dir}{Output directory where to out the file}
 
@@ -35,12 +30,11 @@ Elements '0' are excluded from window.}
 (in the case of multiple tests)}
 }
 \value{
-A tibble with metadata about the output RasterLayer objects.
+A data cube
 }
 \description{
 Takes a set of classified raster layers with probabilities,
-             whose metadata is]created by \code{\link[sits]{sits_cube}},
-             and label them, with an optional bayesian smoothing process.
+             and label them based on the maximum probability for each pixel.
 }
 \examples{
 \dontrun{
@@ -74,9 +68,7 @@ sinop_probs <- sits_classify(sinop,
 )
 
 # label the classification and smooth the result with a bayesian filter
-sinop_bayes <- sits_label_classification(sinop_probs,
-    output_dir = tempdir(), smoothing = "bayesian"
-)
+sinop_label <- sits_label_classification(sinop_probs, output_dir = tempdir())
 }
 
 }

@@ -7,31 +7,42 @@ default:
     # number of items returned by stac service
     rstac_pagination_limit   : 1000
 
-    # minimim number of samples for multiprocessing
-    minimum_number_samples   : 1000
-
     # Data cube types known to sits
-    cube_types              : ["WTSS", "SATVEG", "BRICK", "STACK", "RASTER", "BDC", "S2_L2A_AWS", "PROBS", "CLASSIFIED"]
-    cube_classes_generic    : ["wtss_cube", "satveg_cube", "raster_cube", "raster_cube", "raster_cube","raster_cube", "raster_cube", "raster_cube", "probs_cube", "classified_image"]
-    cube_classes_specific   : ["wtss_cube", "satveg_cube", "brick_cube", "stack_cube", "raster_cube", "bdc_cube", "s2_l2a_aws_cube", "probs_cube", "classified_image"]
-    cube_robjs              : ["no_raster", "no_raster", "raster", "raster", "raster", "raster", "raster"]
-    cube_services           : ["WTSS", "SATVEG"]
-    cube_raster             : ["RASTER", "BDC", "S2_L2A_AWS", "PROBS", "CLASSIFIED"]
+    cube_types              : ["WTSS", "SATVEG", "BRICK", "STACK", "RASTER", "BDC", "DEAFRICA", "S2_L2A_AWS", "GDALCUBES", "PROBS", "CLASSIFIED"]
+    cube_classes            : ["wtss_cube", "satveg_cube", "brick_cube", "stack_cube", "raster_cube", "bdc_cube", "deafrica_cube", "s2_l2a_aws_cube", "gdalcubes_cube",  "probs_cube", "classified_image"]
 
     # Image file extensions known to SITS
     img_file_extensions     : ["tiff", "tif", "jp2", "hdf"]
 
     # BDC configuration for access to data
-    bdc_stac                : "http://brazildatacube.dpi.inpe.br/stac/"
+    bdc_stac                : "https://brazildatacube.dpi.inpe.br/stac/"
     bdc_extension           : ["tif"]
 
+    # EOAfrica configuration for access to data
+    deafrica_stac           : "https://explorer.digitalearth.africa/stac/"
+    deafrica_extension      : ["tif"]
+
+    # aws configuration for access to data
+    aws_stac                : "https://earth-search.aws.element84.com/v0/"
+
+    # AWS configuration
+    AWS_DEFAULT_REGION      :
+        S2_L2A_AWS          : "eu-central-1"
+
+    AWS_ENDPOINT            :
+        S2_L2A_AWS          : "sentinel-s2-l2a.s3.amazonaws.com"
+
+    AWS_REQUEST_PAYER       :
+        S2_L2A_AWS          : "requester"
+
     # information to parse repositories
-    BDC               :
+    BDC                     :
         data_dir_path       : ["cube", "version", "tile"]
         parse_info          : ["sat", "res", "X1", "X2", "X3", "tile", "date", "X4", "band"]
         delim               : ["_"]
+        test_file           : "/vsicurl/http://brazildatacube.dpi.inpe.br/data/d006/Warped/CB4_64/v001/021024/2018-12-31/CB4_64_v001_021024_2018-12-31_BAND13.tif"
 
-    RASTER                   :
+    RASTER                  :
         data_dir_path       : ["."]
         parse_info          : ["band", "date"]
         delim               : ["_"]
@@ -106,49 +117,58 @@ default:
 
     OLI                     : &landsat
         bands               :
-            SITS            : &oli_bands_sits ["B2", "B3", "B4", "B5", "B6", "B7", "NDVI", "EVI"]
-            BDC             : ["band2", "band3", "band4", "band5", "band6", "band7", "ndvi", "evi"]
+            SITS            : &oli_bands_sits ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "NDVI", "EVI", "FMASK4"]
+            BDC             : ["BAND1", "BAND2", "BAND3", "BAND4", "BAND5", "BAND6", "BAND7", "NDVI", "EVI", "FMASK4"]
             RASTER          : *oli_bands_sits
+            cloud_band      : "FMASK4"
+
         missing_value       :
             NDVI            : -9999
             EVI             : -9999
+            B1              : -9999
             B2              : -9999
             B3              : -9999
             B4              : -9999
             B5              : -9999
             B6              : -9999
             B7              : -9999
-
+            FMASK           : 255
 
         minimum_value       :
             NDVI            : -3000
             EVI             : -3000
+            B1              : 0
             B2              : 0
             B3              : 0
             B4              : 0
             B5              : 0
             B6              : 0
             B7              : 0
+            FMASK           : 0
 
         maximum_value       :
             NDVI            : 10000
             EVI             : 10000
+            B1              : 10000
             B2              : 10000
             B3              : 10000
             B4              : 10000
             B5              : 10000
             B6              : 10000
             B7              : 10000
+            FMASK           : 255
 
         scale_factor:
             NDVI            : 0.0001
             EVI             : 0.0001
+            B1              : 0.0001
             B2              : 0.0001
             B3              : 0.0001
             B4              : 0.0001
             B5              : 0.0001
             B6              : 0.0001
             B7              : 0.0001
+            FMASK           : 1
 
         resolution          :
             xres            : 30
@@ -164,7 +184,6 @@ default:
             BDC             : ["BAND13", "BAND14", "BAND15", "BAND16", "NDVI", "EVI", "CMASK"]
             RASTER          : *awfi_bands_sits
             cloud_band      : "CMASK"
-
 
         missing_value       :
             NDVI            : -9999
@@ -214,9 +233,10 @@ default:
         bands               :
             SITS            : &msi_bands_sits ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12", "SCL"]
             S2_L2_AWS       : &msi_bands_aws ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12", "SCL"]
-            BDC             : ["band1", "band2", "band3", "band4", "band5", "band6", "band7", "band8", "band8a", "band9", "band10", "band11", "band12"]
+            BDC             : ["band1", "band2", "band3", "band4", "band5", "band6", "band7", "band8", "band8a", "band9", "band10", "band11", "band12", "Fmask4"]
             RASTER          : *msi_bands_sits
             AWS             : *msi_bands_aws
+            DEAFRICA        : *msi_bands_aws
             cloud_band      : "SCL"
 
         SCL_values          :
@@ -339,13 +359,17 @@ default:
         BDC                 :
             AWFI_CLD_BAND   : "CMASK"
             AWFI_cld_vls    : 4
-            MSI_CLD_BAND    : "FMASK"
+            MSI_CLD_BAND    : "FMASK4"
             MSI_cld_vls     : [2, 3, 4, 255]
-            OLI_CLD_BAND    : "FMASK"
+            OLI_CLD_BAND    : "FMASK4"
             OLI_cld_vls     : [2, 3, 4, 255]
 
 
         S2_L2A_AWS          :
+            MSI_CLD_BAND    : "SCL"
+            MSI_cld_vls     : [0, 1, 2, 3, 7, 8, 9, 10, 11]
+
+        DEAFRICA            :
             MSI_CLD_BAND    : "SCL"
             MSI_cld_vls     : [0, 1, 2, 3, 7, 8, 9, 10, 11]
 
@@ -401,6 +425,13 @@ default:
         terra               : &crs-wgs84 "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
         aqua                : *crs-wgs84
         comb                : *crs-wgs84
+
+
+    PROBS                   :
+        scale_factor        : 0.0001
+        minimum_value       : 0
+        maximum_value       : 10000
+        missing_value       : -9999
 
     colors:
         Araguaia :          "palegreen3"

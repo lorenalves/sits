@@ -5,6 +5,18 @@ apply_transition_matrix <- function(data_before, data, transition_matrix) {
     .Call(`_sits_apply_transition_matrix`, data_before, data, transition_matrix)
 }
 
+bayes_smoother <- function(m, m_nrow, m_ncol, w, sigma, covar_sigma0) {
+    .Call(`_sits_bayes_smoother`, m, m_nrow, m_ncol, w, sigma, covar_sigma0)
+}
+
+kernel_smoother <- function(m, m_nrow, m_ncol, w, normalised) {
+    .Call(`_sits_kernel_smoother`, m, m_nrow, m_ncol, w, normalised)
+}
+
+bilinear_smoother <- function(m, m_nrow, m_ncol, w, tau) {
+    .Call(`_sits_bilinear_smoother`, m, m_nrow, m_ncol, w, tau)
+}
+
 median_neigh <- function(data, nrows_window, ncols_window) {
     .Call(`_sits_median_neigh`, data, nrows_window, ncols_window)
 }
@@ -27,17 +39,5 @@ linear_interp_vec <- function(vec) {
 
 normalize_data <- function(data, min, max) {
     .Call(`_sits_normalize_data`, data, min, max)
-}
-
-bayes_estimator_class <- function(data, window, variance) {
-    .Call(`_sits_bayes_estimator_class`, data, window, variance)
-}
-
-scale_data <- function(data, scale_factor, adj_val = 0.0) {
-    .Call(`_sits_scale_data`, data, scale_factor, adj_val)
-}
-
-scale_matrix_integer <- function(data, scale_factor) {
-    .Call(`_sits_scale_matrix_integer`, data, scale_factor)
 }
 

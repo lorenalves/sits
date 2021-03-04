@@ -10,12 +10,12 @@
 #'  \item{patterns: }                    {see \code{\link{plot.patterns}}}
 #'  \item{SOM map: }                     {see \code{\link{plot.som_map}}}
 #'  \item{classified time series: }      {see \code{\link{plot.predicted}}}
-#'  \item{raster cube: }                 {see \code{\link{plot.raster_cube}}}
+#'  \item{brick  cube: }                 {see \code{\link{plot.brick_cube}}}
+#'  \item{stack  cube: }                 {see \code{\link{plot.stack_cube}}}
 #'  \item{classification probabilities: }{see \code{\link{plot.probs_cube}}}
 #'  \item{classified image: }            {see \code{\link{plot.classified_image}}}
 #'  \item{SOM evaluate cluster: }        {see \code{\link{plot.som_evaluate_cluster}}}
 #' }
-#'
 #'
 #' In the case of time series, the plot function produces different plots
 #' based on the input data:
@@ -31,9 +31,9 @@
 #' @param  x            object of class "sits"
 #' @param  y            ignored
 #' @param ...           further specifications for \link{plot}.
-#' @param  colors       Color pallete to be used (based on Color Brewer
+#' @param  colors       Color palette to be used (based on Color Brewer
 #'                      - default is "Dark2").
-#' @return              plot
+#' @return              The plot itself.
 #'
 #' @examples
 #' \dontrun{
@@ -66,7 +66,7 @@ plot.sits <- function(x, y, ..., colors = "Dark2") {
 #' @param  x             object of class "patterns"
 #' @param  y             ignored
 #' @param  ...           further specifications for \link{plot}.
-#' @return               plot
+#' @return               The plot itself.
 #'
 #' @examples
 #' \dontrun{
@@ -90,7 +90,7 @@ plot.patterns <- function(x, y, ...) {
 #' @param  y             ignored
 #' @param  ...           further specifications for \link{plot}.
 #' @param  bands         bands used for visualisation
-#' @return               plot
+#' @return               The plot itself.
 #'
 #' @examples
 #' \dontrun{
@@ -108,12 +108,12 @@ plot.predicted <- function(x, y, ..., bands = "NDVI") {
     p <- .sits_plot_classification(x, bands)
     return(invisible(p))
 }
-#' @title  Generic interface for plotting probability cubes
-#' @name   plot.raster_cube
+#' @title  Generic interface for plotting brick cubes
+#' @name   plot.brick_cube
 #' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
 #' @description plots a stack cube using terra
 #'
-#' @param  x             object of class "raster_cube"
+#' @param  x             object of class "brick_cube"
 #' @param  y             ignored
 #' @param  ...           further specifications for \link{plot}.
 #' @param  red           band for red color.
@@ -149,7 +149,7 @@ plot.predicted <- function(x, y, ..., bands = "NDVI") {
 #' }
 #'
 #' @export
-plot.raster_cube <- function(x, y, ..., red, green, blue, time = 1) {
+plot.brick_cube <- function(x, y, ..., red, green, blue, time = 1) {
     stopifnot(missing(y))
     # verifies if mapview package is installed
     if (!requireNamespace("mapview", quietly = TRUE)) {
@@ -166,25 +166,16 @@ plot.raster_cube <- function(x, y, ..., red, green, blue, time = 1) {
     ))
 
     # get information about bands and files
-    file_info <- x$file_info[[1]]
+    file_info <- x[1,]$file_info[[1]]
 
     # is there a cloud band?
     # remove the cloud band from the file information
-    bands <- sits_bands(x)
-    cld_band <- .sits_config_cloud_band(x)
-    if (cld_band %in% bands) {
-        file_info <- dplyr::filter(file_info, band != cld_band)
-        bands <- bands[bands != cld_band]
-    }
-    if (nrow(file_info) == length(bands)) {
-          is_brick <- TRUE
-      } else {
-          is_brick <- FALSE
-      }
+    bands <- .sits_config_bands_no_cloud(x[1,])
+    file_info <- dplyr::filter(file_info, band %in% bands)
+
 
     # index to assign which bands to plot
-    index <- .sits_plot_rgb_assign(
-        is_brick = is_brick,
+    index <- .sits_plot_rgb_brick(
         bands = bands,
         timeline = sits_timeline(x),
         red = toupper(red),
@@ -194,29 +185,130 @@ plot.raster_cube <- function(x, y, ..., red, green, blue, time = 1) {
     )
 
     # is the data set a stack or a brick
-    if (is_brick) {
-        # use the raster package to obtain a "rast" object from a brick
-        rast <- suppressWarnings(raster::stack(file_info$path))
-        assertthat::assert_that(raster::ncol(rast) > 0 & raster::nrow(rast) > 1,
-            msg = "plot.raster_cube: unable to retrive raster data"
-        )
 
-        # plot the RGB file
-        mv <- suppressWarnings(mapview::viewRGB(rast,
-            r = index["red"],
-            g = index["green"],
-            b = index["blue"]
-        ))
+    # use the raster package to obtain a "rast" object from a brick
+    rast <- suppressWarnings(raster::stack(file_info$path))
+    assertthat::assert_that(raster::ncol(rast) > 0 & raster::nrow(rast) > 1,
+                      msg = "plot.brick_cube: unable to retrive raster data"
+    )
+
+    # plot the RGB file
+    mv <- suppressWarnings(mapview::viewRGB(rast,
+                                            r = index["red"],
+                                            g = index["green"],
+                                            b = index["blue"]
+    ))
+    return(mv)
+}
+#' @title  Generic interface for plotting stack cubes
+#' @name   plot.stack_cube
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+#' @description plots a stack cube using terra
+#'
+#' @param  x             object of class "stack_cube"
+#' @param  y             ignored
+#' @param  ...           further specifications for \link{plot}.
+#' @param  red           band for red color.
+#' @param  green         band for green color.
+#' @param  blue          band for blue color.
+#' @param  time          temporal instances to be plotted.
+#' @param  roi           sf object giving a region of interest.
+#'
+#' @return               mapview object
+#'
+#' @examples
+#' \dontrun{
+#' data_dir <- system.file("extdata/raster/cbers", package = "sits")
+#'
+#' cbers_022024 <- sits_cube(
+#'     type = "STACK",
+#'     name = "cbers_022024",
+#'     satellite = "CBERS-4",
+#'     sensor = "AWFI",
+#'     resolution = "64m",
+#'     data_dir = data_dir,
+#'     parse_info = c("X1", "X2", "band", "date")
+#' )
+#' # plot the data cube
+#' plot(cbers_022024, red = "B15", green = "B16", blue = "B13", time = 1)
+#' }
+#'
+#' @export
+plot.stack_cube <- function(x, y, ..., red, green, blue, time = 1, roi = NULL) {
+
+    stopifnot(missing(y))
+
+    # verifies if mapview package is installed
+    if (!requireNamespace("mapview", quietly = TRUE)) {
+        stop("Please install package mapview.", call. = FALSE)
     }
-    else {
-        # use the raster package to obtain a raster object from a stack
-        rast <- suppressWarnings(raster::stack(file_info$path[index]))
-        assertthat::assert_that(raster::ncol(rast) > 0 & raster::nrow(rast) > 1,
-            msg = "plot.raster_cube: unable to retrieve raster data"
-        )
-        # plot the RGB file
-        mv <- suppressWarnings(mapview::viewRGB(rast, r = 1, g = 2, b = 3))
+    # verifies if raster package is installed
+    if (!requireNamespace("raster", quietly = TRUE)) {
+        stop("Please install package raster.", call. = FALSE)
     }
+    # verify sf package if roi is informed
+    if (!purrr::is_null(roi)) {
+        if (!requireNamespace("sf", quietly = TRUE)) {
+            stop("Please install package sf.", call. = FALSE)
+        }
+
+        # filter only intersecting tiles
+        intersects <- slider::slide(x, function(row) {
+
+            .sits_raster_sub_image_intersects(row, roi)
+        }) %>% unlist()
+
+        if (!any(intersects)) {
+            stop("Informed roi does not intersect cube.", call. = FALSE)
+        }
+        x <- x[intersects,]
+    }
+
+    # set mapview options
+    mapview::mapviewOptions(basemaps = c(
+        "GeoportailFrance.orthos",
+        "Esri.WorldImagery"
+    ))
+
+    # plot only the first tile
+    # get information about bands and files
+    file_info <- x[1,]$file_info[[1]]
+
+    # is there a cloud band?
+    # remove the cloud band from the file information
+    bands <- .sits_config_bands_no_cloud(x[1,])
+    file_info <- dplyr::filter(file_info, band %in% bands)
+
+    # index to assign which bands to plot
+    index <- .sits_plot_rgb_stack(
+        bands = bands,
+        timeline = sits_timeline(x),
+        red = toupper(red),
+        green = toupper(green),
+        blue = toupper(blue),
+        time = time
+    )
+
+    # use the raster package to obtain a raster object from a stack
+    rast <- suppressWarnings(raster::stack(file_info$path[index]))
+
+    if (!purrr::is_null(roi)) {
+
+        roi <- raster::extent(sf::st_bbox(
+            sf::st_transform(roi, crs = raster::crs(rast))))
+
+        rast <- suppressWarnings(raster::crop(rast, roi))
+
+    }
+
+    assertthat::assert_that(raster::ncol(rast) > 0 & raster::nrow(rast) > 1,
+                    msg = "plot.stack_cube: unable to retrieve raster data"
+    )
+
+    # plot the RGB file
+    mv <- suppressWarnings(mapview::viewRGB(
+        rast, r = 1, g = 2, b = 3,
+        layer.name = paste0("Time ", time)))
 
     return(mv)
 }
@@ -234,7 +326,7 @@ plot.raster_cube <- function(x, y, ..., red, green, blue, time = 1) {
 #' @param colors         color palette.
 #' @param n_colors       number of colors.
 #'
-#' @return               plot
+#' @return               The plot itself.
 #'
 #' @examples
 #' \dontrun{
@@ -348,13 +440,16 @@ plot.probs_cube <- function(x, y, ..., time = 1,
 #'     memsize = 4, multicores = 2
 #' )
 #' # smooth the result with a bayesian filter
-#' sinop_bayes <- sits_label_classification(sinop_probs,
-#'     output_dir = tempdir(),
-#'     smoothing = "bayesian"
+#'
+#' sinop_bayes <- sits_smooth(sinop_probs,
+#'     output_dir = tempdir())
+#'
+#' sinop_label <- sits_label_classification(sinop_bayes,
+#'     output_dir = tempdir()
 #' )
 #'
 #' # plot the smoothened image
-#' plot(sinop_bayes, title = "Sinop-Bayes")
+#' plot(sinop_label, title = "Sinop-Bayes")
 #' }
 #' @export
 plot.classified_image <- function(x, y, ..., map = NULL, time = 1,
@@ -381,7 +476,7 @@ plot.classified_image <- function(x, y, ..., map = NULL, time = 1,
     # obtain the raster
     rl <- suppressWarnings(raster::raster(x$file_info[[1]]$path[time]))
     assertthat::assert_that(raster::ncol(rl) > 0 & raster::nrow(rl) > 1,
-        msg = "plot.raster_cube: unable to retrive raster data"
+        msg = "plot.classified_image: unable to retrive raster data"
     )
     # create a RAT
     rl <- raster::ratify(rl)
@@ -421,7 +516,7 @@ plot.classified_image <- function(x, y, ..., map = NULL, time = 1,
 #' @param  ...          further specifications for \link{plot}.
 #' @param  name_cluster Choose the cluster to plot
 #' @param  title        title of plot. default is ""Confusion by cluster"".
-#' @return              plot
+#' @return              The plot itself.
 #' @examples
 #' \dontrun{
 #' # Produce a cluster map
@@ -456,7 +551,7 @@ plot.som_evaluate_cluster <- function(x, y, ..., name_cluster = NULL, title = "C
 #'                    "mapping" for the number of samples allocated in a neuron.
 #' @param  whatmap    What data layer will be plotted.
 #'
-#' @return            plot
+#' @return            The plot itself.
 #'
 #' @examples
 #' \dontrun{
@@ -482,7 +577,7 @@ plot.som_map <- function(x, y, ..., type = "codes", whatmap = 1) {
 #' @param  x             Object of class "keras_model"
 #' @param  y             ignored
 #' @param  ...           further specifications for \link{plot}.
-#' @return               plot
+#' @return               The plot itself.
 #'
 #' @examples
 #' \donttest{
@@ -586,8 +681,7 @@ plot.keras_model <- function(x, y, ...) {
 #'
 #' @param    data    A sits tibble with the list of time series to be plotted.
 #' @param    colors  The color pallete to be used (default is "Set1").
-#' @return           plot
-#'
+#' @return           The plot itself.
 .sits_plot_together <- function(data, colors) {
     # create a data frame with the median, and 25% and 75% quantiles
     create_iqr <- function(dt, band) {
@@ -693,7 +787,7 @@ plot.keras_model <- function(x, y, ...) {
 #'
 #' @param row         row of a sits tibble with the time series to be plotted.
 #' @param colors      brewer colors to be used for plotting.
-#' @return            plot
+#' @return            The plot itself.
 .sits_ggplot_series <- function(row, colors = "Dark2") {
     # Are there NAs in the data?
     if (any(is.na(row$time_series[[1]]))) {
@@ -713,7 +807,7 @@ plot.keras_model <- function(x, y, ...) {
 #'
 #' @param row         row of a sits tibble with the time series to be plotted.
 #' @param colors      brewer colors to be used for plotting.
-#' @return            plot
+#' @return            The plot itself.
 .sits_ggplot_series_no_na <- function(row, colors = "Dark2") {
     # create the plot title
     plot_title <- .sits_plot_title(row$latitude, row$longitude, row$label)
@@ -743,7 +837,7 @@ plot.keras_model <- function(x, y, ...) {
 #'
 #' @param row         row of a sits tibble with the time series to be plotted.
 #' @param colors      brewer colors to be used for plotting.
-#' @return            plot
+#' @return            The plot itself.
 .sits_ggplot_series_na <- function(row, colors = "Dark2") {
 
     # define a function to replace the NAs for unique values
@@ -792,7 +886,7 @@ plot.keras_model <- function(x, y, ...) {
 #' @param melted         tibble with the time series (already melted).
 #' @param means          means and std deviations of the time series.
 #' @param plot_title     title for the plot.
-#' @return               plot
+#' @return               The plot itself.
 .sits_ggplot_together <- function(melted, means, plot_title) {
     g <- ggplot2::ggplot(data = melted, ggplot2::aes(
         x = Index,
@@ -848,8 +942,7 @@ plot.keras_model <- function(x, y, ...) {
 #' @param data         sits tibble with classified time series.
 #' @param bands        band for plotting the classification.
 #'
-#' @return             plot
-#'
+#' @return             The plot itself.
 .sits_plot_classification <- function(data, bands = NULL) {
     if (purrr::is_null(bands)) {
           bands <- sits_bands(data)[1]
@@ -981,7 +1074,7 @@ plot.keras_model <- function(x, y, ...) {
 #'                      indicating the height of dendrogram cutting.
 #' @param colors        color scheme as per `sits_color_name` function.
 #'
-#' @return              plot
+#' @return              The plot itself.
 .sits_plot_dendrogram <- function(data,
                                   cluster_obj,
                                   cutree_height = NULL,
@@ -1120,7 +1213,7 @@ plot.keras_model <- function(x, y, ...) {
 #' @keywords internal
 #' @author Lorena Santos \email{lorena.santos@@inpe.br}
 #'
-#' @description Plot a bar graph with informations about each cluster.
+#' @description Plot a bar graph with information about each cluster.
 #' The percentage of mixture between the clusters.
 #'
 #' @param data          Percentage of mixture between the clusters
@@ -1159,14 +1252,13 @@ plot.keras_model <- function(x, y, ...) {
     return(invisible(p))
 }
 #' @title  Assign RGB channels to into image layers with many time instance
-#' @name   .sits_plot_rgb_assign
+#' @name   .sits_plot_rgb_brick
 #' @keywords internal
 #' @author Gilberto Camara \email{gilberto.camara@@inpe.br}
 #'
 #' @description Obtain a vector with the correct layer to be plotted for
-#' an RGB assignment of a multi-temporal cube
+#' an RGB assignment of a multi-temporal brick cube
 #'
-#' @param is_brick   is the data a brick or a stack?
 #' @param bands      bands of the data cube (excludes cloud band)
 #' @param timeline   timeline of the data cube
 #' @param red        Band to be assigned to R channel
@@ -1174,8 +1266,8 @@ plot.keras_model <- function(x, y, ...) {
 #' @param blue       Band to be assigned to G channel
 #' @param time       Temporal instance to be plotted
 #' @return           Named vector with the correct layers for RGB
-.sits_plot_rgb_assign <- function(is_brick, bands, timeline,
-                                  red, green, blue, time) {
+.sits_plot_rgb_brick <- function(bands, timeline,
+                                 red, green, blue, time) {
 
     # check if the selected bands are correct
     all_bands <- paste0(bands, collapse = " ")
@@ -1194,13 +1286,58 @@ plot.keras_model <- function(x, y, ...) {
     assertthat::assert_that(time <= n_instances, msg = "time out of bounds")
 
     # locate the instances
-    instances_lst <- purrr::map(c(red, green, blue), function(b) {
-        inst <- grep(b, bands)
-        if (is_brick) {
+    instances_lst <- purrr::map(c(red, green, blue),
+          function(b) {
+              inst <- grep(b, bands)
               return(n_instances * (inst - 1) + time)
-          } else {
+    })
+
+    # create a named vector to store the RGB instances
+    index <- unlist(instances_lst)
+    names(index) <- c("red", "green", "blue")
+
+    return(index)
+}
+#' @title  Assign RGB channels to for raster stack cubes
+#' @name   .sits_plot_rgb_stack
+#' @keywords internal
+#' @author Gilberto Camara \email{gilberto.camara@@inpe.br}
+#'
+#' @description Obtain a vector with the correct layer to be plotted for
+#' an RGB assignment of a multi-temporal brick cube
+#'
+#' @param bands      bands of the data cube (excludes cloud band)
+#' @param timeline   timeline of the data cube
+#' @param red        Band to be assigned to R channel
+#' @param green      Band to be assigned to G channel
+#' @param blue       Band to be assigned to G channel
+#' @param time       Temporal instance to be plotted
+#' @return           Named vector with the correct layers for RGB
+.sits_plot_rgb_stack <- function(bands, timeline,
+                                 red, green, blue, time) {
+
+    # check if the selected bands are correct
+    all_bands <- paste0(bands, collapse = " ")
+    assertthat::assert_that(red %in% bands,
+                          msg = paste0("R channel should be one of ", all_bands)
+    )
+    assertthat::assert_that(green %in% bands,
+                          msg = paste0("G channel should be one of ", all_bands)
+    )
+    assertthat::assert_that(blue %in% bands,
+                          msg = paste0("B channel should be one of ", all_bands)
+    )
+    # find out the number of instances
+    n_instances <- length(timeline)
+    # check if the selected temporal instance exists
+    assertthat::assert_that(time <= n_instances,
+                            msg = sprintf("Time '%s' is out of bounds.", time))
+
+    # locate the instances
+    instances_lst <- purrr::map(c(red, green, blue),
+          function(b) {
+              inst <- grep(b, bands)
               return((time - 1) * length(bands) + inst)
-          }
     })
 
     # create a named vector to store the RGB instances

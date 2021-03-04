@@ -30,12 +30,10 @@
 #' @examples
 #' # Retrieve the set of samples for Mato Grosso (provided by EMBRAPA)
 #' # fit a training model (RFOR model)
-#' samples_2bands <- sits_select(samples_mt_4bands, bands = c("NDVI", "EVI"))
-#' ml_model <- sits_train(samples_2bands, sits_rfor(num_trees = 500))
+#' samples <- sits_select(samples_mt_6bands, bands = c("NDVI"))
+#' ml_model <- sits_train(samples, sits_rfor(num_trees = 100))
 #' # get a point and classify the point with the ml_model
-#' point.tb <- sits_select(point_mt_6bands, bands = c("NDVI", "EVI"))
-#' class.tb <- sits_classify(point.tb, ml_model)
-#' plot(class.tb, bands = c("NDVI", "EVI"))
+#' class <- sits_classify(point_ndvi, ml_model)
 #' @export
 sits_train <- function(data, ml_method = sits_svm()) {
     # backward compatibility
@@ -173,9 +171,7 @@ sits_lda <- function(data = NULL, formula = sits_formula_logref(), ...) {
 #' # Train a QDA model
 #' qda_model <- sits_train(samples_mt_ndvi, sits_qda())
 #' # Classify a point
-#' class.tb <- sits_classify(point_ndvi, qda_model)
-#' # Plot results
-#' plot(class.tb)
+#' class <- sits_classify(point_ndvi, qda_model)
 #' @export
 sits_qda <- function(data = NULL, formula = sits_formula_logref(), ...) {
     # backward compatibility
@@ -332,15 +328,13 @@ sits_mlr <- function(data = NULL, formula = sits_formula_linear(),
 #'                     (to be passed to \code{\link[sits]{sits_classify}})
 #' @examples
 #' # Retrieve the set of samples for Mato Grosso  (provided by EMBRAPA)
-#' samples_2bands <- sits_select(samples_mt_4bands, bands = c("NDVI", "EVI"))
+#' samples_ndvi <- sits_select(samples_mt_6bands, bands = c("NDVI"))
 #'
 #' # Build a machine learning model based on deep learning
-#' ml_model <- sits_train(samples_2bands, sits_ranger(num_trees = 300))
+#' ml_model <- sits_train(samples_ndvi, sits_ranger(num_trees = 100))
 #'
 #' # get a point and classify the point with the ml_model
-#' point.tb <- sits_select(point_mt_6bands, bands = c("NDVI", "EVI"))
-#' class.tb <- sits_classify(point.tb, ml_model)
-#' plot(class.tb, bands = c("NDVI", "EVI"))
+#' class <- sits_classify(point_ndvi, ml_model)
 #' @export
 sits_ranger <- function(data = NULL,
                         num_trees = 2000,
@@ -421,7 +415,7 @@ sits_ranger <- function(data = NULL,
 #' @param num_trees        number of trees to grow.
 #'                         This should not be set to too small a number,
 #'                         to ensure that every input row gets predicted
-#'                         at least a few times. (default: 2000)
+#'                         at least a few times (default: 2000).
 #' @param nodesize         minimum size of terminal nodes
 #'                         (default 1 for classification)
 #' @param ...              other parameters to be passed
@@ -669,10 +663,6 @@ sits_xgboost <- function(data = NULL,
     # function that returns xgb model
     result_fun <- function(data) {
 
-        # data normalization
-        stats <- .sits_normalization_param(data)
-        train_data <- .sits_distances(.sits_normalize_data(data, stats))
-
         # get the labels of the data
         labels <- sits_labels(data)$label
         assertthat::assert_that(length(labels) > 0,
@@ -684,6 +674,9 @@ sits_xgboost <- function(data = NULL,
         int_labels <- c(1:n_labels)
         names(int_labels) <- labels
 
+        # get the training data
+        train_data <- .sits_distances(data)
+
         # reference labels for each sample expressed as numerical values
         references <- unname(int_labels[as.vector(train_data$reference)]) - 1
 
@@ -691,6 +684,7 @@ sits_xgboost <- function(data = NULL,
         params <- list(
             booster = "gbtree",
             objective = "multi:softprob",
+            eval_metric = "mlogloss",
             eta = learning_rate,
             gamma = min_split_loss,
             max_depth = max_depth,
@@ -865,18 +859,11 @@ sits_formula_linear <- function(predictors_index = -2:0) {
 #' @param stats    Statistics for normalization.
 #' @param multicores  Number of cores to process.
 #' @return A normalized sits tibble.
-.sits_normalize_data <- function(data, stats, multicores = 1) {
+.sits_normalize_data <- function(data, stats, multicores = 2) {
     # backward compatibility
     data <- .sits_tibble_rename(data)
     .sits_test_tibble(data)
-    # find the number of cores
-    if (purrr::is_null(multicores)) {
-          multicores <- max(parallel::detectCores(logical = FALSE) - 1, 1)
-      }
-    # avoid overhead on multicore processing
-    if (nrow(data) < sits_env$config$minimum_number_samples) {
-          multicores <- 1
-      }
+
     # get the bands of the input data
     bands <- sits_bands(data)
     # check that input bands are included in the statistics already calculated
@@ -926,11 +913,9 @@ sits_formula_linear <- function(predictors_index = -2:0) {
 
     if (multicores > 1) {
         chunks <- split(values, cut(1:n_values, 2, labels = FALSE))
-        norm_values <- dplyr::combine(parallel::mclapply(chunks,
-                                                         normalize_chunk,
-                                                         mc.cores = multicores
-                                                         )
-        )
+        norm_values <- chunks %>%
+          parallel::mclapply(normalize_chunk, mc.cores = multicores) %>%
+          unlist(recursive = FALSE)
     }
     else
           norm_values <- normalize_chunk(values)
@@ -968,7 +953,10 @@ sits_formula_linear <- function(predictors_index = -2:0) {
     # parallel processing for normalization
     if (multicores > 1) {
         blocks <- .sits_raster_data_split(data, multicores)
-        rows <- parallel::mclapply(blocks, normalize_block, quant_2,
+        rows <- parallel::mclapply(
+            blocks,
+            normalize_block,
+            quant_2,
             quant_98,
             mc.cores = multicores
         )

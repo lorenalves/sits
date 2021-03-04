@@ -1,4 +1,4 @@
-#' @title Apply a function over sits bands.
+#' @title Apply a function over a time series.
 #' @name sits_apply
 #' @author Rolf Simoes, \email{rolf.simoes@@inpe.br}
 #' @description Apply a 1D generic function to a time series
@@ -83,45 +83,59 @@ sits_apply <- function(data,
     return(data)
 }
 
-
-
-#' @title Names of the bands of a time series
-#' @name sits_rename
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+#' @title Add new sits bands.
+#' @name sits_mutate_bands
+#' @keywords internal
 #' @author Rolf Simoes, \email{rolf.simoes@@inpe.br}
-#'
-#' @description Set the names of the bands of time series in a sits tibble.
-#'
-#' @param data      Valid sits tibble.
-#' @param names        String vector with the names of the new bands.
-#' @return A sits tibble with the new names for the bands.
+#' @description Adds new bands and preserves existing in the time series
+#'              of a sits tibble using \code{dplyr::mutate} function.
+#' @param data       Valid sits tibble.
+#' @param ...        Expressions written as `name = value`.
+#'                   See \code{dplyr::mutate()} help for more details.
+#' @return           A sits tibble with same samples and the selected bands.
 #' @examples
-#' # Retrieve a time series with one band
-#' data(point_ndvi)
-#' # Rename the band
-#' ndvi1.tb <- sits_rename(point_ndvi, names = c("VEG_INDEX"))
-#' # print the names of the new band
-#' sits_bands(ndvi1.tb)
+#' \donttest{
+#' # Retrieve data for time series with label samples in Mato Grosso in Brazil
+#' data(samples_mt_6bands)
+#' # Generate a new image with the SAVI (Soil-adjusted vegetation index)
+#' savi.tb <- sits_mutate_bands(samples_mt_6bands,
+#'            SAVI = (1.5 * (NIR - RED) / (NIR + RED + 0.5)))
+#' }
 #' @export
-sits_rename <- function(data, names) {
+sits_mutate_bands <- function(data, ...) {
+
     # backward compatibility
     data <- .sits_tibble_rename(data)
-    # verify if the number of bands informed is the same
-    # as the actual number of bands in input data
-    assertthat::assert_that(length(names) == length(sits_bands(data)),
-        msg = "sits_bands: input bands and informed bands have different sizes."
-    )
-    # bands in SITS are uppercase
-    names <- toupper(names)
 
-    # rename and return
-    data$time_series <- data$time_series %>%
-        purrr::map(function(ts) {
-            names(ts) <- c("Index", names)
-            return(ts)
-        })
+    # verify if data has values
+    .sits_test_tibble(data)
+    # bands in SITS are uppercase
+    sits_bands(data) <- toupper(sits_bands(data))
+
+    # compute mutate for each time_series tibble
+    proc_fun <- function(...) {
+        data$time_series <- data$time_series %>%
+            purrr::map(function(ts) {
+                ts_computed <- ts %>%
+                    dplyr::mutate(...)
+                return(ts_computed)
+            })
+    }
+
+    # compute mutate for each time_series tibble
+    tryCatch({
+        data$time_series <- proc_fun(...)
+    },
+    error = function(e) {
+        msg <- paste0("Error - Are your band names all uppercase?")
+        message(msg)
+    }
+    )
+
     return(data)
 }
+
+
 
 #' @title Sample a percentage of a time series
 #' @name sits_sample
@@ -248,65 +262,138 @@ sits_time_series <- function(data) {
 #' @examples
 #' # Retrieve a set of time series with 2 classes
 #' data(cerrado_2classes)
-#' # retrieve the values split by bands
-#' sits_values(cerrado_2classes[1:2, ], format = "bands_dates_cases")
+#' # retrieve the values split by bands and dates
+#' ls1 <- sits_values(cerrado_2classes[1:2, ], format = "bands_dates_cases")
+#' # retrieve the values split by cases (occurences)
+#' ls2 <- sits_values(cerrado_2classes[1:2, ], format = "cases_dates_bands")
+#' #' # retrieve the values split by bands and cases (occurences)
+#' ls3 <- sits_values(cerrado_2classes[1:2, ], format = "bands_dates_cases")
 #' @export
 sits_values <- function(data, bands = NULL, format = "cases_dates_bands") {
-    assertthat::assert_that(format == "cases_dates_bands" ||
+    assertthat::assert_that(
+        format == "cases_dates_bands" ||
         format == "bands_cases_dates" ||
         format == "bands_dates_cases",
     msg = "sits_values: valid format parameter are
              'cases_dates_bands', 'bands_cases_dates', or 'bands_dates_cases'"
     )
-
-    # backward compatibility
-    data <- .sits_tibble_rename(data)
-
+    class(format) <- c(format, class(format))
+    UseMethod("sits_values", format)
+}
+#' @title Return the values of a given sits tibble using "cases_dates_bands"
+#' @name sits_values.cases_dates_bands
+#' @author Rolf Simoes, \email{rolf.simoes@@inpe.br}
+#'
+#' @description This function returns only the values of a sits tibble
+#' (according a specified format).
+#' This function is useful to use packages such as ggplot2, dtwclust, or kohonen
+#' that require values that are rowwise or colwise organised.
+#'
+#' @param  data       A sits tibble with time series for different bands.
+#' @param  bands      A string with a group of bands whose
+#'                    values are to be extracted. If no bands are informed
+#'                    extract ALL bands
+#' @param  format     A string with either "cases_dates_bands"
+#'                    or "bands_cases_dates" or "bands_dates_cases"
+#'
+#' @return A sits tibble with values.
+#' @examples
+#' # Retrieve a set of time series with 2 classes
+#' data(cerrado_2classes)
+#' # retrieve the values split by bands
+#' sits_values(cerrado_2classes[1:2, ], format = "cases_dates_bands")
+#' @export
+sits_values.cases_dates_bands <- function(data, bands = NULL, format) {
     if (purrr::is_null(bands)) {
-          bands <- sits_bands(data)
-      }
-
-    # equivalent to former sits_values_rows()
-    # used in sits_cluster input data
-    # list elements: bands, matrix's rows: cases, matrix's cols: dates
-    if (format == "cases_dates_bands") {
-        # populates result
-        values <- data$time_series %>%
-            purrr::map(function(ts) {
-                data.matrix(dplyr::select(ts, dplyr::one_of(bands)))
-            })
-
-        # another kind of sits_values_rows()
-        # used in sits_kohonen input
-        # list elements: bands, matrix's rows: cases, matrix's cols: dates
-    } else if (format == "bands_cases_dates") {
-        values <- bands %>% purrr::map(function(band) {
-            data$time_series %>%
-                purrr::map(function(ts) {
-                    dplyr::select(ts, dplyr::one_of(band))
-                }) %>%
-                data.frame() %>%
-                tibble::as_tibble() %>%
-                as.matrix() %>%
-                t()
-        })
-
-        names(values) <- bands
-        # equivalent to former sits_values_cols()
-        # list elements: bands, matrix's rows: dates, matrix's cols: cases
-    } else if (format == "bands_dates_cases") {
-        values <- bands %>% purrr::map(function(band) {
-            data$time_series %>%
-                purrr::map(function(ts) {
-                    dplyr::select(ts, dplyr::one_of(band))
-                }) %>%
-                data.frame() %>%
-                tibble::as_tibble() %>%
-                as.matrix()
-        })
-
-        names(values) <- bands
+        bands <- sits_bands(data)
     }
+    # populates result
+    values <- data$time_series %>%
+        purrr::map(function(ts) {
+        data.matrix(dplyr::select(ts, dplyr::one_of(bands)))
+    })
+    return(values)
+}
 
+#' @title Return the values of a given sits tibble using "bands_cases_dates"
+#' @name sits_values.bands_cases_dates
+#' @author Rolf Simoes, \email{rolf.simoes@@inpe.br}
+#'
+#' @description This function returns only the values of a sits tibble
+#' (according a specified format).
+#' This function is useful to use packages such as ggplot2, dtwclust, or kohonen
+#' that require values that are rowwise or colwise organised.
+#'
+#' @param  data       A sits tibble with time series for different bands.
+#' @param  bands      A string with a group of bands whose
+#'                    values are to be extracted. If no bands are informed
+#'                    extract ALL bands
+#' @param  format     A string with either "cases_dates_bands"
+#'                    or "bands_cases_dates" or "bands_dates_cases"
+#'
+#' @return A sits tibble with values.
+#' @examples
+#' # Retrieve a set of time series with 2 classes
+#' data(cerrado_2classes)
+#' # retrieve the values split by bands
+#' sits_values(cerrado_2classes[1:2, ], format = "bands_cases_dates")
+#' @export
+sits_values.bands_cases_dates <- function(data, bands = NULL, format) {
+    if (purrr::is_null(bands)) {
+        bands <- sits_bands(data)
+    }
+    # populates result
+    values <- bands %>% purrr::map(function(band) {
+        data$time_series %>%
+            purrr::map(function(ts) {
+            dplyr::select(ts, dplyr::one_of(band))
+        }) %>%
+        data.frame() %>%
+        tibble::as_tibble() %>%
+        as.matrix() %>%
+        t()
+  })
+  names(values) <- bands
+  return(values)
+}
+
+#' @title Return the values of a given sits tibble using "bands_dates_cases"
+#' @name sits_values.bands_dates_cases
+#' @author Rolf Simoes, \email{rolf.simoes@@inpe.br}
+#'
+#' @description This function returns only the values of a sits tibble
+#' (according a specified format).
+#' This function is useful to use packages such as ggplot2, dtwclust, or kohonen
+#' that require values that are rowwise or colwise organised.
+#'
+#' @param  data       A sits tibble with time series for different bands.
+#' @param  bands      A string with a group of bands whose
+#'                    values are to be extracted. If no bands are informed
+#'                    extract ALL bands
+#' @param  format     A string with either "cases_dates_bands"
+#'                    or "bands_cases_dates" or "bands_dates_cases"
+#'
+#' @return A sits tibble with values.
+#' @examples
+#' # Retrieve a set of time series with 2 classes
+#' data(cerrado_2classes)
+#' # retrieve the values split by bands
+#' sits_values(cerrado_2classes[1:2, ], format = "bands_dates_cases")
+#' @export
+sits_values.bands_dates_cases <- function(data, bands = NULL, format) {
+    if (purrr::is_null(bands)) {
+        bands <- sits_bands(data)
+    }
+    values <- bands %>% purrr::map(function(band) {
+        data$time_series %>%
+            purrr::map(function(ts) {
+                dplyr::select(ts, dplyr::one_of(band))
+            }) %>%
+            data.frame() %>%
+            tibble::as_tibble() %>%
+            as.matrix()
+    })
+
+    names(values) <- bands
     return(values)
 }

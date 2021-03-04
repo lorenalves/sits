@@ -41,7 +41,7 @@ sits_classify <- function(data, ml_model, ...) {
     # is the data a sits tibble? If not, it must be a cube
     if (!("sits" %in% class(data))) {
         # find out the generic cube class it belongs to
-        class_data <- .sits_config_cube_generic(data[1, ]$type)
+        class_data <- .sits_config_cube_class(data[1, ]$type)
         class(data) <- c(class_data, class(data))
     }
 
@@ -124,21 +124,21 @@ sits_classify.sits <- function(data, ml_model, ...,
 
     # get normalization params
     stats <- environment(ml_model)$stats
-    # has the data been normalised?
-    if (!purrr::is_null(stats)) {
-          # if not, obtain the distances after normalizing data by band
+    # has the training data been normalized?
+    if (!purrr::is_null(stats))
+          # yes, then normalize the input data
           distances <- .sits_distances(.sits_normalize_data
           (
               data = data,
               stats = stats,
               multicores = multicores
           ))
-      } else {
-          # data has been already normalised
+     else
+          # no, input data does not need to be normalized
           distances <- .sits_distances(data)
-      }
 
-    # postcondition: test valid result
+
+    # post condition: is distance data valid?
     assertthat::assert_that(NROW(distances) > 0,
         msg = "sits_classify.sits: problem with normalization"
     )
@@ -201,6 +201,8 @@ sits_classify.sits <- function(data, ml_model, ...,
 #' @return                 cube with the metadata of a brick of probabilities.
 #'
 #' @examples
+#'
+#' \dontrun{
 #' # Classify a raster file with 23 instances for one year
 #' ndvi_file <- c(system.file("extdata/raster/mod13q1/sinop-ndvi-2014.tif",
 #' package = "sits"))
@@ -217,23 +219,21 @@ sits_classify.sits <- function(data, ml_model, ...,
 #' )
 #'
 #' # select band "NDVI"
-#' samples_ndvi <- sits_select(samples_mt_4bands, bands = "NDVI")
+#' samples <- sits_select(samples_mt_4bands, bands = "NDVI")
 #'
 #' # select a random forest model
-#' rfor_model <- sits_train(samples_ndvi,
-#'               ml_method = sits_rfor(num_trees = 300))
+#' rfor_model <- sits_train(samples, ml_method = sits_rfor(num_trees = 300))
 #'
 #' # classify the raster image
 #' sinop_probs <- sits_classify(sinop_2014,
 #'     ml_model = rfor_model,
 #'     output_dir = tempdir(),
-#'     memsize = 4, multicores = 2
+#'     memsize = 4, multicores = 1
 #' )
 #'
 #' # label the classified image
-#' sinop_label <- sits_label_classification(sinop_probs,
-#'     output_dir = tempdir()
-#' )
+#' sinop_label <- sits_label_classification(sinop_probs, output_dir = tempdir())
+#' }
 #' @export
 sits_classify.raster_cube <- function(data, ml_model, ...,
                                       roi = NULL,
@@ -248,18 +248,13 @@ sits_classify.raster_cube <- function(data, ml_model, ...,
     # precondition - checks if the cube and ml_model are valid
     .sits_classify_check_params(data, ml_model)
 
-    # find the number of cores
-    if (purrr::is_null(multicores)) {
-          multicores <- max(parallel::detectCores(logical = FALSE) - 1, 1)
-      }
+    # filter only intersecting tiles
+    intersects <- slider::slide(data, function(row) {
 
-    # CRAN limits the number of cores to 2
-    chk <- Sys.getenv("_R_CHECK_LIMIT_CORES_", "")
-    # if running on check mode, multicores must be 2
-    if (nzchar(chk) && chk == "TRUE") {
-        # use 2 cores in CRAN/Travis/AppVeyor
-        multicores <- 2L
-    }
+        .sits_raster_sub_image_intersects(row, roi)
+    }) %>% unlist()
+
+    data <- data[intersects,]
 
     # deal with the case where the cube has multiple rows
     probs_rows <- slider::slide(data, function(row) {

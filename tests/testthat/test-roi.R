@@ -27,8 +27,6 @@ test_that("One-year, multicore classification with ROI", {
     bbox["xmax"] <- (bbox["xmax"] - bbox["xmin"]) / 2 + bbox["xmin"]
     bbox["ymax"] <- (bbox["ymax"] - bbox["ymin"]) / 2 + bbox["ymin"]
 
-
-
     sinop_probs <- suppressMessages(
         sits_classify(sinop,
                       svm_model,
@@ -37,13 +35,15 @@ test_that("One-year, multicore classification with ROI", {
                       memsize = 4, multicores = 2
         )
     )
-
     expect_true(all(file.exists(unlist(sinop_probs$file_info[[1]]$path))))
     rc_obj <- suppressWarnings(terra::rast(sinop_probs$file_info[[1]]$path[1]))
     expect_true(terra::nrow(rc_obj) == sinop_probs$nrows)
 
-
-    expect_true(all(sits_bbox(sinop_probs) == bbox))
+    bbox_p <- sits_bbox(sinop_probs)
+    expect_lte(bbox["xmax"], bbox_p["xmax"])
+    expect_lte(bbox["xmin"], bbox_p["xmin"])
+    expect_lte(bbox["ymax"], bbox_p["ymax"])
+    expect_lte(bbox["ymin"], bbox_p["ymin"])
 
     max_lyr2 <- max(terra::values(rc_obj)[, 2])
     expect_true(max_lyr2 < 1000)
@@ -101,5 +101,52 @@ test_that("Functions that work with ROI",{
     bbox_3 <- sits:::.sits_roi_bbox(sf_bbox, cube)
 
     expect_true(length(sits:::.sits_bbox_intersect(bbox_3, cube)) == 4)
-    expect_true(all(bbox_2 == bbox_3))
+})
+
+test_that("Internal functions in ROI",{
+
+    ndvi_file <- c(system.file("extdata/raster/mod13q1/sinop-evi-2014.tif",
+                               package = "sits"
+    ))
+    evi_file <- c(system.file("extdata/raster/mod13q1/sinop-evi-2014.tif",
+                              package = "sits"
+    ))
+
+    cube <- sits_cube(
+        type = "BRICK",
+        name = "sinop-2014",
+        timeline = timeline_2013_2014,
+        satellite = "TERRA",
+        sensor = "MODIS",
+        bands = c("ndvi", "evi"),
+        files = c(ndvi_file, evi_file)
+    )
+
+    # create a roi
+    roi <- sits_bbox(cube)
+    x_size <- as.numeric(roi["xmax"] - roi["xmin"])
+    y_size <- as.numeric(roi["ymax"] - roi["ymin"])
+
+    roi["xmax"] <- roi["xmax"] - 2*x_size
+    roi["xmin"] <- roi["xmin"] - 2*x_size
+    expect_null(sits:::.sits_bbox_intersect(roi, cube))
+
+    bbox <- sits_bbox(cube)
+    bbox["xmax"] <- bbox["xmax"] + x_size
+    bbox["xmin"] <- bbox["xmin"] - x_size
+    bbox["ymax"] <- bbox["ymax"] + x_size
+    bbox["ymin"] <- bbox["ymin"] - x_size
+
+    int_bbox <- sits:::.sits_bbox_intersect(bbox, cube)
+    expect_true(all(int_bbox == sits_bbox(cube)))
+
+    bb <- sits_bbox(cube)
+    bb["xmin"] <- bb["xmin"] + x_size/4
+    bb["ymin"] <- bb["ymin"] + x_size/4
+
+    si <- sits:::.sits_sub_image_from_bbox(bb, cube)
+    expect_true(si["first_row"] == 1)
+    expect_true(si["first_col"] == 13)
+    expect_true(si["nrows"] == 38)
+    expect_true(si["ncols"] == 38)
 })

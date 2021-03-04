@@ -337,7 +337,7 @@ sits_missing_values <- function(data, miss_value) {
 #' @title NDVI filter with ARIMA model
 #' @name sits_ndvi_arima
 #' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#' @description  This function tries to remove clouds in the ndvi band of
+#' @description  This function tries to remove clouds in the NDVI band of
 #' a time series. It looks for points where the value of the NDVI
 #' band goes down abruptly. These points are those whose difference is more
 #' than a cutoff value which is set by the user.
@@ -412,7 +412,7 @@ sits_ndvi_arima <- function(data = NULL, cutoff = -0.25,
             })
         # rename the output bands
         new_bands <- paste0(bands, ".", bands_suffix)
-        result <- sits_rename(result, new_bands)
+        sits_bands(result) <- new_bands
 
         if (apply_whit) {
               result <- sits_whittaker(result, lambda = lambda_whit)

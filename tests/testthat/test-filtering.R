@@ -15,7 +15,7 @@ test_that("Generic filter-error", {
 })
 
 test_that("Envelope filter", {
-    # skip_on_cran()
+    testthat::skip_on_cran()
     library(dtwclust)
     point_env <- sits_envelope(point_ndvi, bands_suffix = "env")
     expect_true(all(sits_time_series(point_env)$NDVI.env
@@ -68,7 +68,7 @@ test_that("Arima filter", {
 
     # filtered data has less sd
     expect_true(sd(sits_time_series(point_ndvi)$NDVI) >
-        sd(sits_time_series(point_cld)$NDVI.AR.wf))
+        sd(sits_time_series(point_cld)$NDVI.ar.wf))
 })
 
 test_that("Missing values", {

@@ -8,8 +8,9 @@
 #' By default, the sits configuration file "config.yml" is located at
 #' the directory "extdata" of the package.
 #'
-#' The user can provide her additional configuration on an additional
-#' configuration file, which is located by default on ~/.sits/config.yml.
+#' Users can provide additional configuration files, by specifying the
+#' location of their file in the environmental variable
+#' SITS_USER_CONFIG_FILE
 #'
 #' To see the contents of the configuration file,
 #' please use \code{\link[sits]{sits_config_show}}.
@@ -35,7 +36,7 @@ sits_config <- function() {
     sits_env$config <- config::get(file = yml_file)
 
     # try to find a valid user configuration file
-    user_yml_file <- "~/.sits/config.yml"
+    user_yml_file <- Sys.getenv("SITS_USER_CONFIG_FILE")
 
     if (file.exists(user_yml_file)) {
         config_user <- config::get(file = user_yml_file)
@@ -66,7 +67,7 @@ sits_config_info <- function() {
     message(paste0("Using configuration file: ", yml_file))
 
     # try to find a valid user configuration file
-    user_yml_file <- "~/.sits/config.yml"
+    user_yml_file <- Sys.getenv("SITS_USER_CONFIG_FILE")
     if (file.exists(user_yml_file)) {
           message(
             paste0(
@@ -75,11 +76,7 @@ sits_config_info <- function() {
               )
             )
       } else {
-          message(
-              paste0(
-                  "Users can provide additional configurations in ",
-                  user_yml_file
-              )
+          message("To provide additional configurations, create an yml file and set environment variable SITS_USER_CONFIG_FILE to point to it"
           )
       }
 
@@ -108,44 +105,77 @@ sits_config_show <- function() {
     )
 
     # try to find a valid user configuration file
-    if (file.exists("~/.sits/config.yml")) {
-          yml_user_file <- c("~/.sits/config.yml")
-      } else {
-          yml_user_file <- NULL
-      }
+    user_yml_file <- Sys.getenv("SITS_USER_CONFIG_FILE")
 
     # read the configuration parameters
     message("Default system configuration file")
     cat(readLines(yml_file), sep = "\n")
-    if (!purrr::is_null(yml_user_file)) {
+    if (file.exists(user_yml_file)) {
         message("User configuration file - overrides default config")
-        cat(readLines(yml_user_file), sep = "\n")
+        cat(readLines(user_yml_file), sep = "\n")
     }
 
     return(invisible(TRUE))
 }
-#' @title Obtain the name of the bands used by a cube or by SITS
-#' @name .sits_config_band_names
+#' @title Read the AWS default region from configuration file
+#' @name .sits_config_aws_default_region
+#' @param type  Type of data cube
 #' @keywords internal
-#'
 #' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
 #'
-#' @description Obtain the name of the bands used by a cube or by SITS
-#' @param sensor         Name of the sensor
-#' @param type           Type of the data cube (or "SITS")
+#' @return directory where BDC is accessible on the web
+.sits_config_aws_default_region <- function(type) {
+    return(sits_env$config[["AWS_DEFAULT_REGION"]][[type]])
+}
+#' @title Read the AWS end point from configuration file
+#' @name .sits_config_aws_endpoint
+#' @param type  Type of data cube
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
 #'
-#' @return               Name of the bands used in that data cube or by SITS
+#' @return directory where BDC is accessible on the web
+.sits_config_aws_endpoint <- function(type) {
+    return(sits_env$config[["AWS_ENDPOINT"]][[type]])
+}
+#' @title Read the AWS end point from configuration file
+#' @name .sits_config_aws_request_payer
+#' @param type  Type of data cube
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
 #'
-.sits_config_band_names <- function(sensor, type) {
-    bands <- sits_env$config[[sensor]][["bands"]][[type]]
-    assertthat::assert_that(!purrr::is_null(bands),
-        msg = "band names inconsistent with cube type"
-    )
-
-    return(bands)
+#' @return directory where BDC is accessible on the web
+.sits_config_aws_request_payer <- function(type) {
+    return(sits_env$config[["AWS_REQUEST_PAYER"]][[type]])
+}
+#' @title Directory to read the DEAFRICA STAC catalogue
+#' @name .sits_config_deafrica_stac
+#' @keywords internal
+#'
+#' @return directory where DEAFRICA is accessible on the web
+.sits_config_deafrica_stac <- function() {
+  return(sits_env$config$deafrica_stac)
+}
+#' @title Directory to read the AWS STAC catalogue
+#' @name .sits_config_aws_stac
+#' @keywords internal
+#'
+#' @return directory where DEAFRICA is accessible on the web
+.sits_config_aws_stac <- function() {
+  return(sits_env$config$aws_stac)
+}
+#' @title Retrieve the bands associated to DEAfrica STAC
+#' @name sits_config_satveg_bands
+#' @param sensor Type of sensor of cube
+#' @param cube   Cube in which bands will be searched
+#' @keywords internal
+#' @description Retrieve the cubes associated to the STAC service from DEAfrica
+#'
+#' @return         Names of DEAfrica available bands
+.sits_config_sensor_bands <- function(sensor, cube) {
+  return(sits_env$config[[sensor]][["bands"]][[cube]])
 }
 #' @title Convert bands names from cube to SITS
-#' @name .sits_config_band_names_convert
+#' @name .sits_config_bands_convert
 #' @keywords internal
 #'
 #' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
@@ -156,6 +186,7 @@ sits_config_show <- function() {
 #' @param sensor         Name of sensor
 #' @param bands_files    Bands available in the files
 #' @return               Name of the bands used in SITS (named vector)
+#'
 #'
 .sits_config_bands_convert <- function(satellite, sensor, bands_files) {
     # Precondition
@@ -169,7 +200,6 @@ sits_config_show <- function() {
         names(bands_sits) <- bands_files
         return(bands_sits)
     }
-
     # bands used by BDC
     bands_bdc <-
         sits_env$config[[sensor]][["bands"]][["BDC"]]
@@ -191,11 +221,25 @@ sits_config_show <- function() {
         names(bands_sits) <- bands_aws
         return(bands_sits)
     }
-
     stop("band names unknown by SITS configuration file. Please fix it")
     return(NULL)
 }
+#' @title Retrieve all but except the cloud band
+#' @name .sits_config_bands_no_cloud
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+#' @param cube   A data cube
+#'
+#' @return vector with bands that are not cloud bands
+.sits_config_bands_no_cloud <- function(cube) {
 
+    bands <- sits_bands(cube[1,])
+    cld_band <- .sits_config_cloud_band(cube[1,])
+    if (cld_band %in% bands) {
+        bands <- bands[bands != cld_band]
+    }
+  return(bands)
+}
 #' @title Directory to read the BDC STAC catalogue
 #' @name .sits_config_bdc_stac
 #' @keywords internal
@@ -213,56 +257,11 @@ sits_config_show <- function() {
 #' @param url  URL for access to the BDC STAC
 #'
 #' @return directory where BDC is accessible on the web
-.sits_config_bdc_stac_access <- function(url) {
+.sits_config_bdc_stac_access <- function(url = NULL) {
     if (purrr::is_null(url)) {
           url <- .sits_config_bdc_stac()
       }
-
     return(RCurl::url.exists(url))
-}
-
-#' @title Directory to read the BDC information on the web
-#' @name .sits_config_bdc_web
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#'
-#' @return directory where BDC is accessible on the web
-.sits_config_bdc_web <- function() {
-    return(sits_env$config$bdc_web)
-}
-
-#' @title Test if the BDC is working
-#' @name .sits_config_bdc_web_access
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#' @param url  URL for access to the BDC
-#'
-#' @return TRUE/FALSE if BDC can be accessed
-.sits_config_bdc_web_access <- function(url = NULL) {
-    if (purrr::is_null(url)) {
-          url <- .sits_config_bdc_web()
-      }
-
-    return(RCurl::url.exists(url))
-}
-
-#' @title Directory to read the BDC information as local file
-#' @name .sits_config_bdc_local
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#'
-#' @return directory where BDC is accessible on the web
-.sits_config_bdc_local <- function() {
-    return(sits_env$config$bdc_local)
-}
-#' @title File extension used by BDC
-#' @name .sits_config_bdc_extension
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#'
-#' @return extension of BDC files
-.sits_config_bdc_extension <- function() {
-    return(sits_env$config$bdc_extension)
 }
 
 #' @title Get the name of the band used for cloud information
@@ -273,7 +272,7 @@ sits_config_show <- function() {
 #'
 #' @return vector with bands available in AWS for a given resolution
 .sits_config_cloud_band <- function(cube) {
-    cb <- paste0(cube$sensor, "_CLD_BAND")
+    cb <- paste0(cube[1,]$sensor, "_CLD_BAND")
     cloud_band <- sits_env$config[["CLOUD"]][[cube$type[1]]][[cb]]
     assertthat::assert_that(!purrr::is_null(cloud_band),
         msg = "Cloud band information not available"
@@ -327,45 +326,25 @@ sits_config_show <- function() {
     return(unlist(colors))
 }
 
-#' @title Retrieve the classes associated to data cubes known to SITS
-#' @name .sits_config_cube_generic
+#' @title Retrieve the class associated to data cubes known to SITS
+#' @name .sits_config_cube_class
 #' @keywords internal
 #' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
 #' @description Retrieve the class name associated to a cube type
 #' @param type  Data cube type
 #' @return      Class of data cube
 #'
-.sits_config_cube_generic <- function(type) {
+.sits_config_cube_class <- function(type) {
     # check that the cube is correct
     type <- toupper(type)
     # find out which cube types are supported
     types <- sits_env$config$cube_types
     assertthat::assert_that(type %in% types,
-        msg = "unsupported cube type"
+                            msg = "unsupported cube type"
     )
-    classes <- sits_env$config$cube_classes_generic
-    names(classes) <- types
-    return(unname(classes[type]))
-}
-#' @title Retrieve the generic class associated to data cubes known to SITS
-#' @name .sits_config_cube_specific
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#' @description Retrieve the metadata class name associated to a cube type
-#' @param type  Data cube type
-#' @return      Class of data cube metadata
-#'
-.sits_config_cube_specific <- function(type) {
-    # check that the cube is correct
-    type <- toupper(type)
-    # find out which cube types are supported
-    types <- sits_env$config$cube_types
-    assertthat::assert_that(type %in% types,
-        msg = "unsupported cube type"
-    )
-    classes <- sits_env$config$cube_classes_specific
-    names(classes) <- types
-    return(unname(classes[type]))
+    cube_classes <- sits_env$config$cube_classes
+    names(cube_classes) <- sits_env$config$cube_types
+    return(unname(cube_classes[type]))
 }
 #' @title Check that the type is valid, based on the configuration file
 #' @name .sits_config_cube_check
@@ -393,16 +372,7 @@ sits_config_show <- function() {
     return(TRUE)
 }
 
-#' @title Retrieve the types associated to data cubes known to SITS
-#' @name .sits_config_cube_types
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#' @description Retrieve the class name associated to a cube type
-#' @return      Class of data cube
-#'
-.sits_config_cube_types <- function() {
-    return(sits_env$config$cube_types)
-}
+
 #' @title meta-type for data
 #' @name .sits_config_data_meta_type
 #' @keywords internal
@@ -426,18 +396,6 @@ sits_config_show <- function() {
     }
     return(data)
 }
-
-#' @title Standard files for data directory for cube type
-#' @name .sits_config_data_dir_path
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#' @param  type    cube_type
-#'
-#' @return file path to the appended to data_dir
-.sits_config_data_dir_path <- function(type) {
-    return(sits_env$config[[type]][["data_dir_path"]])
-}
-
 #' @title Standard files for data directory for cube type
 #' @name .sits_config_data_parse_info
 #' @keywords internal
@@ -568,6 +526,37 @@ sits_config_show <- function() {
 
     names(mis_val) <- bands
     return(mis_val)
+}
+#' @title Retrieve the scale factor for a probs cube
+#' @name .sits_config_probs_scale_factor
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+.sits_config_probs_scale_factor  <- function(){
+    return(sits_env$config[["PROBS"]][["scale_factor"]])
+}
+
+#' @title Retrieve the missing value for a probs cube
+#' @name .sits_config_probs_missing_value
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+.sits_config_probs_missing_value  <- function(){
+  return(sits_env$config[["PROBS"]][["missing_value"]])
+}
+
+#' @title Retrieve the minimum value for a probs cube
+#' @name .sits_config_probs_minimum_value
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+.sits_config_probs_minimum_value  <- function(){
+  return(sits_env$config[["PROBS"]][["minimum_value"]])
+}
+
+#' @title Retrieve the maximum value for a probs cube
+#' @name .sits_config_probs_maximum_value
+#' @keywords internal
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+.sits_config_probs_maximum_value  <- function(){
+  return(sits_env$config[["PROBS"]][["maximum_value"]])
 }
 
 #' @title Retrieve the estimated value of R memory bloat
@@ -803,16 +792,7 @@ sits_config_show <- function() {
     s <- "S2_L2A_AWS"
     return(sits_env$config[[s]][["bucket"]])
 }
-#' @title File to test access to Sentinel-2 level 2A images in AWS
-#' @name .sits_config_s2_aws_test_file
-#' @keywords internal
-#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
-#'
-#' @return name of the bucket
-.sits_config_s2_aws_test_file <- function() {
-    s <- "S2_L2A_AWS"
-    return(sits_env$config[[s]][["test_file"]])
-}
+
 #' @title Get the the resolutions for Sentinel-2 ARD in AWS
 #' @name .sits_config_s2_aws_res
 #' @keywords internal
@@ -868,3 +848,16 @@ sits_config_show <- function() {
     )
     return(scale_f)
 }
+#' @title File to test access to cloud services
+#' @name .sits_config_test_file
+#' @keywords internal
+#' @param  type    Data cube type
+#' @author Gilberto Camara, \email{gilberto.camara@@inpe.br}
+#'
+#' @return name of the bucket
+.sits_config_test_file <- function(type) {
+  return(sits_env$config[[type]][["test_file"]])
+}
+
+
+

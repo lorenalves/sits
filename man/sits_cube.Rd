@@ -8,21 +8,31 @@ sits_cube(type = "RASTER", ...)
 }
 \arguments{
 \item{type}{Type of cube (one of "WTSS", "BRICK", "STACK",
-"BDC_TILE", "S2_L2A_AWS", "PROBS", "CLASSIFIED")}
+"BDC_TILE", "S2_L2A_AWS", "GDALCUBES", "PROBS",
+"CLASSIFIED")}
 
 \item{...}{Other parameters to be passed for specific types}
+}
+\value{
+The description of a sits cube
 }
 \description{
 Defines a cube to retrieve data. This is a generic function.
 Cubes can be of the following types. See each function description for the
 required parameters:
 \itemize{
- \item{"WTSS": }{see \code{\link{sits_cube.wtss_cube}}}
  \item{"SATVEG": }{ see \code{\link{sits_cube.satveg_cube}}}
  \item{"BRICK": }{see \code{\link{sits_cube.brick_cube}}}
  \item{"STACK": }{see \code{\link{sits_cube.stack_cube}}}
  \item{"BDC"}{Brazil Data Cube - see \code{\link{sits_cube.bdc_cube}}}
+ \item{"DEAFRICA"}{Digital Earth Africa -
+                    see \code{\link{sits_cube.deafrica_cube}}}
  \item{"S2_L2A_AWS"}{Sentinel-2 data in AWS -
                      see \code{\link{sits_cube.s2_l2a_aws_cube}}}
+ \item{"GDALCUBES"}{gdalcubes compose function -
+                     see \code{\link{sits_cube.gdalcubes_cube}}}
+ \item{"PROBS"}{create a cube from a classified image -
+                     see \code{\link{sits_cube.probs_cube}}}
+
 }
 }

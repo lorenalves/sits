@@ -8,14 +8,14 @@
   type = "S2_L2A_AWS",
   ...,
   name = NULL,
-  bands = NULL,
+  url = NULL,
+  collection = NULL,
   tiles = NULL,
+  bands = NULL,
+  s2_resolution = NULL,
+  roi = NULL,
   start_date = NULL,
-  end_date = NULL,
-  s2_aws_resolution = NULL,
-  access_key = NULL,
-  secret_key = NULL,
-  region = NULL
+  end_date = NULL
 )
 }
 \arguments{
@@ -25,21 +25,25 @@
 
 \item{name}{output data cube.}
 
-\item{bands}{vector of bands.}
+\item{url}{URL for the STAC AWS catalog (optional). By default,
+'https://earth-search.aws.element84.com/v0/' will be used.}
 
-\item{tiles}{vector of tiles}
+\item{collection}{AWS collection to be searched (mandatory).}
 
-\item{start_date}{starting date of the cube}
+\item{tiles}{Tile names to be searched (optional).}
 
-\item{end_date}{ending date of the cube}
+\item{bands}{Bands names to be filtered (optional).}
 
-\item{s2_aws_resolution}{resolution of S2 images ("10m", "20m" or "60m")}
+\item{s2_resolution}{resolution of S2 images ("10m", "20m" or "60m");}
 
-\item{access_key}{AWS access key}
+\item{roi}{selects images (tiles) that intersect according to the
+region of interest provided. Expressed either as an \code{sfc} or \code{sf}
+object from sf package, or a \code{vector} with bounding box named XY values
+in WGS 84 ("xmin", "xmax", "ymin", "ymax").}
 
-\item{secret_key}{AWS secret key}
+\item{start_date}{Initial date for the cube files (optional).}
 
-\item{region}{AWS region}
+\item{end_date}{Final date for the cube files (optional).}
 }
 \value{
 data cube
@@ -53,6 +57,15 @@ Defines a cube to retrieve data from the Sentinel-2 L2A data
              The  20m bands are "B02", "B03", "B04", "B05", "B06", "BO7",
              "B08", "B8A", "B11", and "B12".
              All 12 bands are available at 60m resolution.
+
+   Users need to provide AWS credentials in their environmental variables\cr
+Sys.setenv(\cr
+     "AWS_ACCESS_KEY_ID"     = <your_access_key>, \cr
+     "AWS_SECRET_ACCESS_KEY" = <your_secret_access_key>,\cr
+     "AWS_DEFAULT_REGION"    = <your AWS region>, \cr
+     "AWS_ENDPOINT" = "sentinel-s2-l2a.s3.amazonaws.com", \cr
+     "AWS_REQUEST_PAYER"     = "requester" \cr
+)
 }
 \examples{
 \dontrun{
@@ -68,16 +81,18 @@ Defines a cube to retrieve data from the Sentinel-2 L2A data
 # "AWS_REQUEST_PAYER"     = "requester"
 # )
 
-s2_cube <- sits_cube(
-    type = "S2_L2A_AWS",
-    name = "T20LKP_2018_2019",
-    satellite = "SENTINEL-2",
-    sensor = "MSI",
-    tiles = "20LKP",
-    s2_aws_resolution = "20m",
-    start_date = as.Date("2018-07-18"),
-    end_date = as.Date("2018-07-23")
-)
+cube_s2 <- sits::sits_cube(type = "S2_L2A_AWS",
+                           name = "s2_cube",
+                           collection = "sentinel-s2-l2a",
+                           bands = c("B04", "B08"),
+                           s2_resolution = "20m",
+                           roi = c("xmin" = 17.379,
+                                   "ymin" = 1.1573,
+                                   "xmax" = 17.410,
+                                   "ymax" = 1.1910),
+                           start_date = "2019-01-01",
+                           end_date = "2019-10-28")
+
 }
 
 }
